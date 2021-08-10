@@ -5,6 +5,7 @@ throw() {
   exit 1
 }
 
+LEVEL=
 BRIEF=0
 LEAFONLY=0
 PRUNE=0
@@ -45,9 +46,14 @@ parse_options() {
       ;;
       -s) NORMALIZE_SOLIDUS=1
       ;;
-      ?*) echo "ERROR: Unknown option."
+      ?*)
+        if [ -z "$LEVEL" ]; then
+          LEVEL=$1
+        else
+          echo "ERROR: Unknown option."
           usage
           exit 0
+        fi
       ;;
     esac
     shift 1
@@ -165,6 +171,7 @@ parse_object () {
 
 parse_value () {
   local jpath="${1:+$1,}$2" isleaf=0 isempty=0 print=0
+  level=$(( $level + 1 ))
   case "$token" in
     '{') parse_object "$jpath" ;;
     '[') parse_array  "$jpath" ;;
@@ -177,6 +184,14 @@ parse_value () {
        [ "$value" = '""' ] && isempty=1
        ;;
   esac
+  levelmatch=
+  if [ -n "$LEVEL" -a "$level" = "$LEVEL" ]; then
+    levelmatch=1
+  elif [ -z "$LEVEL" ]; then
+    levelmatch=1
+  fi
+  level=$(( $level - 1 ))
+
   [ "$value" = '' ] && return
   [ "$NO_HEAD" -eq 1 ] && [ -z "$jpath" ] && return
 
@@ -185,10 +200,14 @@ parse_value () {
   [ "$LEAFONLY" -eq 0 ] && [ "$PRUNE" -eq 1 ] && [ "$isempty" -eq 0 ] && print=1
   [ "$LEAFONLY" -eq 1 ] && [ "$isleaf" -eq 1 ] && \
     [ $PRUNE -eq 1 ] && [ $isempty -eq 0 ] && print=1
+  if [ -z "$levelmatch" ]; then
+    print=0
+  fi
   [ "$print" -eq 1 ] && printf "[%s]\t%s\n" "$jpath" "$value"
   :
 }
 
+level=-1
 parse () {
   read -r token
   parse_value
